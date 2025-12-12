@@ -1,0 +1,31 @@
+name: RtpQueueAdvance
+version: ${project.version}
+main: com.spy.rtpqueueadvance.RtpQueueAdvance
+api-version: '1.21'
+author: Spy
+description: Advanced RTP Queue plugin with world selection GUI
+
+commands:
+  rtpqueue:
+    description: Open RTP Queue world selection GUI
+    usage: /<command>
+    aliases: [rtpq]
+  rtpqueueleave:
+    description: Leave the current RTP queue
+    usage: /<command>
+    aliases: [rtpleave, leavequeue]
+  rtpqueuereload:
+    description: Reload RtpQueue Advance configuration
+    usage: /<command>
+    permission: rtpqueue.admin
+
+permissions:
+  rtpqueue.use:
+    description: Permission to use RTP Queue
+    default: true
+  rtpqueue.admin:
+    description: Permission to reload plugin
+    default: op
+  rtpqueue.bypass:
+    description: Bypass queue and teleport instantly
+    default: op

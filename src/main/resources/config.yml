@@ -1,0 +1,124 @@
+# RtpQueue Advance Configuration
+# ================================
+
+# GUI Settings
+gui:
+  title: "&6&lRTP Queue &8| &fWorld Selection"
+  size: 27  # 9, 18, 27, 36, 45, 54
+
+# Queue Settings
+queue:
+  min-players: 2           # Minimum players needed to start teleport
+  countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
+  teleport-together: true  # Teleport all queued players together
+
+# Messages
+messages:
+  prefix: "&aRTPQUEUE &8» &r"
+  joined-queue: "&aYou joined the queue for &e%world%&a! &7(%current%/%max% players)"
+  left-queue: "&cYou left the queue for &e%world%&c."
+  opponent-found: "&aOpponent found, you will be teleported!"
+  teleportation-countdown: "&eTeleportation in &c%seconds%s"
+  teleported: "&aYou have been teleported!"
+  already-in-queue: "&cYou are already in a queue!"
+  not-in-queue: "&cYou are not in any queue!"
+  world-not-found: "&cWorld not found!"
+  no-permission: "&cYou don't have permission to use this!"
+  config-reloaded: "&aConfiguration reloaded successfully!"
+
+# Broadcast Settings (shown to all players)
+broadcast:
+  enabled: true
+  header: "&a✦ &a&lRTPQUEUE &a✦"
+  lines:
+    - "&e%player% &7is waiting for"
+    - "&7an opponent to fight!"
+  footer: "&a+ /rtpqueue +"
+
+# Title Settings (shown on screen when player joins queue)
+title:
+  enabled: true
+  join-title: "&a&l+"
+  join-subtitle: "&aJoined &e&lRTPQueue&a!"
+  found-title: "&a&l✓"
+  found-subtitle: "&aOpponent found!"
+  fade-in: 10
+  stay: 40
+  fade-out: 10
+
+# Action Bar Settings (shown at bottom of screen)
+actionbar:
+  enabled: true
+  message: "&7Waiting for a &aplayer &7in &a/rtpqueue &7(%current%/%max%)"
+  interval: 20  # Ticks between each actionbar refresh (20 ticks = 1 second, keeps it visible until player found)
+
+# Join Message Settings (shown to the player who joined)
+join-message:
+  enabled: true
+  message: "&aRTPQUEUE &8» &7You joined the RTPQueue, wait for an opponent."
+
+# Worlds Configuration
+# Each world needs:
+# - enabled: true/false
+# - display-name: Name shown in GUI
+# - description: Description shown in lore
+# - material: Block/Item to show in GUI
+# - slot: Position in GUI (0-53)
+# - spawn-range:
+#     min: Minimum distance from center
+#     max: Maximum distance from center
+# - center: Center point for RTP (uses world spawn if not set)
+
+worlds:
+  world:
+    enabled: true
+    display-name: "&a&lOVERWORLD"
+    description: "&7Classic survival world"
+    material: GRASS_BLOCK
+    slot: 11
+    spawn-range:
+      min: 100
+      max: 5000
+    center:
+      x: 0
+      z: 0
+      
+  world_nether:
+    enabled: true
+    display-name: "&c&lNETHER"
+    description: "&7The dangerous nether realm"
+    material: NETHERRACK
+    slot: 13
+    spawn-range:
+      min: 50
+      max: 1000
+    center:
+      x: 0
+      z: 0
+      
+  world_the_end:
+    enabled: true
+    display-name: "&5&lTHE END"
+    description: "&7The void dimension"
+    material: END_STONE
+    slot: 15
+    spawn-range:
+      min: 100
+      max: 2000
+    center:
+      x: 0
+      z: 0
+
+# Custom worlds example (uncomment and modify):
+# plains:
+#   enabled: true
+#   display-name: "&e&lPLAINS"
+#   description: "&7A flat plains biome world"
+#   material: TALL_GRASS
+#   slot: 10
+#   spawn-range:
+#     min: 0
+#     max: 3000
+#   center:
+#     x: 0
+#     z: 0
