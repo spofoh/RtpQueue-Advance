@@ -2,6 +2,9 @@ package com.spy.rtpqueueadvance.managers;
 
 import com.spy.rtpqueueadvance.RtpQueueAdvance;
 import com.spy.rtpqueueadvance.utils.WorldConfig;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -55,6 +58,9 @@ public class ConfigManager {
     private boolean joinMessageEnabled;
     private String joinMessageText;
 
+    private String guiStatusInQueue;
+    private String guiStatusNotInQueue;
+
     public ConfigManager(RtpQueueAdvance plugin) {
         this.plugin = plugin;
         this.worldConfigs = new HashMap<>();
@@ -84,6 +90,9 @@ public class ConfigManager {
         worldNotFoundMsg = colorize(plugin.getConfig().getString("messages.world-not-found", "&cWorld not found!"));
         noPermissionMsg = colorize(plugin.getConfig().getString("messages.no-permission", "&cYou don't have permission to use this!"));
         configReloadedMsg = colorize(plugin.getConfig().getString("messages.config-reloaded", "&aConfiguration reloaded successfully!"));
+
+        guiStatusInQueue = colorize(plugin.getConfig().getString("gui.status.in-queue", "&c→ CLICK to Leave Queue"));
+        guiStatusNotInQueue = colorize(plugin.getConfig().getString("gui.status.not-in-queue", "&a→ CLICK to Queue"));
         
         broadcastEnabled = plugin.getConfig().getBoolean("broadcast.enabled", true);
         broadcastHeader = colorize(plugin.getConfig().getString("broadcast.header", "&a&l✦ RTPQUEUE ✦"));
@@ -135,7 +144,8 @@ public class ConfigManager {
             if (!enabled) continue;
             
             String displayName = colorize(worldSection.getString("display-name", "&f" + worldName));
-            String description = colorize(worldSection.getString("description", "&7A world to explore"));
+
+            List<String> guiWorldLore = worldSection.getStringList("world-item-lore");
             
             Material material;
             try {
@@ -154,7 +164,7 @@ public class ConfigManager {
             WorldConfig config = new WorldConfig(
                 worldName,
                 displayName,
-                description,
+                guiWorldLore,
                 material,
                 slot,
                 minRange,
@@ -169,7 +179,19 @@ public class ConfigManager {
     }
 
     public static String colorize(String message) {
-        return ChatColor.translateAlternateColorCodes('&', message);
+        if (message == null || message.isEmpty()) return "";
+
+        try {
+            Component component = MiniMessage.miniMessage().deserialize(
+                    message.replace("§", "&")
+            );
+
+            String parsed = LegacyComponentSerializer.legacySection().serialize(component);
+
+            return ChatColor.translateAlternateColorCodes('&', parsed);
+        } catch (Exception e) {
+            return ChatColor.translateAlternateColorCodes('&', message);
+        }
     }
 
     public Map<String, WorldConfig> getWorldConfigs() {
@@ -302,6 +324,14 @@ public class ConfigManager {
     
     public boolean isJoinMessageEnabled() {
         return joinMessageEnabled;
+    }
+
+    public String getGuiStatusInQueue() {
+        return guiStatusInQueue;
+    }
+
+    public String getGuiStatusNotInQueue() {
+        return guiStatusNotInQueue;
     }
     
     public String getJoinMessageText() {

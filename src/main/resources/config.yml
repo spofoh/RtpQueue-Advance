@@ -6,6 +6,10 @@ gui:
   title: "&6&lRTP Queue &8| &fWorld Selection"
   size: 27  # 9, 18, 27, 36, 45, 54
 
+  status:
+    in-queue: "&c→ CLICK to Leave Queue"
+    not-in-queue: "&a→ CLICK to Queue"
+
 # Queue Settings
 queue:
   min-players: 2           # Minimum players needed to start teleport
@@ -73,7 +77,15 @@ worlds:
   world:
     enabled: true
     display-name: "&a&lOVERWORLD"
-    description: "&7Classic survival world"
+    world-item-lore:
+      - ""
+      - "&e&lInformation:"
+      - "&7Click here to queue for"
+      - "&7the &f%world% &7world!"
+      - ""
+      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - ""
+      - "%status%"
     material: GRASS_BLOCK
     slot: 11
     spawn-range:
@@ -86,7 +98,15 @@ worlds:
   world_nether:
     enabled: true
     display-name: "&c&lNETHER"
-    description: "&7The dangerous nether realm"
+    world-item-lore:
+      - ""
+      - "&e&lInformation:"
+      - "&7Click here to queue for"
+      - "&7the &f%world% &7world!"
+      - ""
+      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - ""
+      - "%status%"
     material: NETHERRACK
     slot: 13
     spawn-range:
@@ -99,7 +119,15 @@ worlds:
   world_the_end:
     enabled: true
     display-name: "&5&lTHE END"
-    description: "&7The void dimension"
+    world-item-lore:
+      - ""
+      - "&e&lInformation:"
+      - "&7Click here to queue for"
+      - "&7the &f%world% &7world!"
+      - ""
+      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - ""
+      - "%status%"
     material: END_STONE
     slot: 15
     spawn-range:

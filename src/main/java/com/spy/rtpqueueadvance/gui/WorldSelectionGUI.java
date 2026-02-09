@@ -69,39 +69,43 @@ public class WorldSelectionGUI {
     private ItemStack createWorldItem(WorldConfig worldConfig, Player player) {
         ItemStack item = new ItemStack(worldConfig.getMaterial());
         ItemMeta meta = item.getItemMeta();
-        
+
         if (meta != null) {
-            meta.setDisplayName(worldConfig.getDisplayName());
-            
+            meta.setDisplayName(ConfigManager.colorize(worldConfig.getDisplayName()));
+
             List<String> lore = new ArrayList<>();
-            lore.add(ConfigManager.colorize("&7" + worldConfig.getDescription()));
-            lore.add("");
-            lore.add(ConfigManager.colorize("&e&lInformation:"));
-            lore.add(ConfigManager.colorize("&7Click here to queue for"));
-            lore.add(ConfigManager.colorize("&7the &f" + worldConfig.getDisplayName() + " &7world!"));
-            lore.add("");
-            
-            int queueSize = plugin.getQueueManager().getQueueSize(worldConfig.getWorldName());
-            int minPlayers = plugin.getConfigManager().getMinPlayers();
-            lore.add(ConfigManager.colorize("&6★ &fPlayers in queue: &a" + queueSize + "&7/&e" + minPlayers));
-            lore.add("");
-            
-            boolean inThisQueue = false;
-            String playerQueue = plugin.getQueueManager().getQueueWorld(player);
-            if (playerQueue != null && playerQueue.equals(worldConfig.getWorldName())) {
-                inThisQueue = true;
+            List<String> layout = worldConfig.getWorldLore();
+
+            if (layout != null && !layout.isEmpty()) {
+                int queueSize = plugin.getQueueManager().getQueueSize(worldConfig.getWorldName());
+                int minPlayers = plugin.getConfigManager().getMinPlayers();
+
+                boolean inThisQueue = false;
+                String playerQueue = plugin.getQueueManager().getQueueWorld(player);
+                if (playerQueue != null && playerQueue.equals(worldConfig.getWorldName())) {
+                    inThisQueue = true;
+                }
+
+                String statusText = inThisQueue
+                        ? plugin.getConfigManager().getGuiStatusInQueue()
+                        : plugin.getConfigManager().getGuiStatusNotInQueue();
+
+                for (String line : layout) {
+                    String processedLine = line
+                            .replace("%world%", worldConfig.getDisplayName())
+                            .replace("%current%", String.valueOf(queueSize))
+                            .replace("%max%", String.valueOf(minPlayers))
+                            .replace("%status%", statusText);
+
+                    lore.add(ConfigManager.colorize(processedLine));
+                }
+
+                meta.setLore(lore);
             }
-            
-            if (inThisQueue) {
-                lore.add(ConfigManager.colorize("&c→ &cCLICK &cto Leave Queue"));
-            } else {
-                lore.add(ConfigManager.colorize("&a→ &aCLICK &ato Queue"));
-            }
-            
-            meta.setLore(lore);
+
             item.setItemMeta(meta);
         }
-        
+
         return item;
     }
 

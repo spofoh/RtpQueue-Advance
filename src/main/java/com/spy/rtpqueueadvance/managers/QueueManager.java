@@ -336,6 +336,7 @@ public class QueueManager {
             case CACTUS:
             case SWEET_BERRY_BUSH:
             case WITHER_ROSE:
+            case WATER:
             case COBWEB:
                 return false;
             default:

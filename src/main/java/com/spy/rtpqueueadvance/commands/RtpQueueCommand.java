@@ -1,6 +1,7 @@
 package com.spy.rtpqueueadvance.commands;
 
 import com.spy.rtpqueueadvance.RtpQueueAdvance;
+import com.spy.rtpqueueadvance.managers.ConfigManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -24,8 +25,8 @@ public class RtpQueueCommand implements CommandExecutor {
         Player player = (Player) sender;
 
         if (!player.hasPermission("rtpqueue.use")) {
-            player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                plugin.getConfigManager().getNoPermissionMsg());
+            player.sendMessage(ConfigManager.colorize(plugin.getConfigManager().getPrefix() +
+                    plugin.getConfigManager().getNoPermissionMsg()));
             return true;
         }
 

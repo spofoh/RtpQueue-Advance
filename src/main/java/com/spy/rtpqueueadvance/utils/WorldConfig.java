@@ -2,11 +2,13 @@ package com.spy.rtpqueueadvance.utils;
 
 import org.bukkit.Material;
 
+import java.util.List;
+
 public class WorldConfig {
 
     private final String worldName;
     private final String displayName;
-    private final String description;
+    private final List<String> worldLore;
     private final Material material;
     private final int slot;
     private final int minRange;
@@ -14,12 +16,12 @@ public class WorldConfig {
     private final int centerX;
     private final int centerZ;
 
-    public WorldConfig(String worldName, String displayName, String description, 
-                       Material material, int slot, int minRange, int maxRange, 
+    public WorldConfig(String worldName, String displayName, List<String> worldLore,
+                       Material material, int slot, int minRange, int maxRange,
                        int centerX, int centerZ) {
         this.worldName = worldName;
         this.displayName = displayName;
-        this.description = description;
+        this.worldLore = worldLore;
         this.material = material;
         this.slot = slot;
         this.minRange = minRange;
@@ -36,8 +38,8 @@ public class WorldConfig {
         return displayName;
     }
 
-    public String getDescription() {
-        return description;
+    public List<String> getWorldLore() {
+        return worldLore;
     }
 
     public Material getMaterial() {
