@@ -24,10 +24,13 @@ public class MessageCache {
 
         synchronized (cache) {
             return cache.computeIfAbsent(text, t -> {
-                Component legacy = LEGACY_SERIALIZER.deserialize(t);
+                String replaced = t.replace("&", "§");
 
-                String serialized = MINI_MESSAGE.serialize(legacy);
-                return MINI_MESSAGE.deserialize("<!italic>" + serialized);
+                Component legacyComponent = LegacyComponentSerializer.legacySection().deserialize(replaced);
+
+                String mmString = MINI_MESSAGE.serialize(legacyComponent).replace("\\<", "<");
+
+                return MINI_MESSAGE.deserialize("<!italic>" + mmString);
             });
         }
     }
