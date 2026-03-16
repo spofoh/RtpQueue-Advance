@@ -1,7 +1,7 @@
 package com.spy.rtpqueueadvance.commands;
 
 import com.spy.rtpqueueadvance.RtpQueueAdvance;
-import com.spy.rtpqueueadvance.managers.ConfigManager;
+import com.spy.rtpqueueadvance.utils.MessageCache;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,13 +17,13 @@ public class ReloadCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("rtpqueue.admin")) {
-            sender.sendMessage(ConfigManager.colorize(plugin.getConfigManager().getPrefix() +
+            sender.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
                     plugin.getConfigManager().getNoPermissionMsg()));
             return true;
         }
 
         plugin.reload();
-        sender.sendMessage(ConfigManager.colorize(plugin.getConfigManager().getPrefix() +
+        sender.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
                 plugin.getConfigManager().getConfigReloadedMsg()));
         return true;
     }

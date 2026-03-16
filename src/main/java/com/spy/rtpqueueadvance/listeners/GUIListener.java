@@ -1,11 +1,14 @@
 package com.spy.rtpqueueadvance.listeners;
 
 import com.spy.rtpqueueadvance.RtpQueueAdvance;
+import com.spy.rtpqueueadvance.gui.WorldSelectionGUI;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class GUIListener implements Listener {
@@ -16,28 +19,24 @@ public class GUIListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
-        
-        String title = event.getView().getTitle();
-        if (!plugin.getWorldSelectionGUI().isGUI(title)) return;
-        
+        if (!(event.getInventory().getHolder() instanceof WorldSelectionGUI.RtpQueueHolder)) return;
+
         event.setCancelled(true);
-        
-        Player player = (Player) event.getWhoClicked();
+
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+
         ItemStack clickedItem = event.getCurrentItem();
-        
         if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
-        if (clickedItem.getType() == Material.GRAY_STAINED_GLASS_PANE) return;
-        
+
         int slot = event.getRawSlot();
         String worldName = plugin.getWorldSelectionGUI().getWorldFromSlot(slot);
-        
+
         if (worldName != null) {
             player.closeInventory();
-            
             String currentQueue = plugin.getQueueManager().getQueueWorld(player);
+
             if (currentQueue != null && currentQueue.equals(worldName)) {
                 plugin.getQueueManager().removeFromQueue(player);
             } else {
@@ -46,6 +45,13 @@ public class GUIListener implements Listener {
                 }
                 plugin.getQueueManager().addToQueue(player, worldName);
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().getHolder() instanceof WorldSelectionGUI.RtpQueueHolder) {
+            event.setCancelled(true);
         }
     }
 }

@@ -20,5 +20,6 @@ public class PlayerQuitListener implements Listener {
         if (plugin.getQueueManager().isInQueue(player)) {
             plugin.getQueueManager().removeFromQueue(player);
         }
+        plugin.getDatabaseManager().unloadPlayerData(player.getUniqueId());
     }
 }

@@ -14,7 +14,6 @@ gui:
 queue:
   min-players: 2           # Minimum players needed to start teleport
   countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
-  teleport-together: true  # Teleport all queued players together
 
 # Messages
 messages:
@@ -25,10 +24,14 @@ messages:
   teleportation-countdown: "&eTeleportation in &c%seconds%s"
   teleported: "&aYou have been teleported!"
   already-in-queue: "&cYou are already in a queue!"
+  opponent-left: "&cYour opponent left! You've been placed back at the front of the queue."
   not-in-queue: "&cYou are not in any queue!"
   world-not-found: "&cWorld not found!"
   no-permission: "&cYou don't have permission to use this!"
+  broadcast-message-hidden: "&cYou will no longer see RTP queue messages."
+  broadcast-message-shown: "&aYou will now see RTP queue messages."
   config-reloaded: "&aConfiguration reloaded successfully!"
+  no-spot: "&cNo safe spot found, try again in a bit"
 
 # Broadcast Settings (shown to all players)
 broadcast:

@@ -4,6 +4,7 @@ main: com.spy.rtpqueueadvance.RtpQueueAdvance
 api-version: '1.21'
 author: Spy
 description: Advanced RTP Queue plugin with world selection GUI
+folia-supported: true
 
 commands:
   rtpqueue:
@@ -18,6 +19,10 @@ commands:
     description: Reload RtpQueue Advance configuration
     usage: /<command>
     permission: rtpqueue.admin
+  rtpqueuetoggle:
+    description: Toggle RtpQueue Advance broadcast messages off for yourself
+    usage: /<command>
+    permission: rtpqueue.toggle
 
 permissions:
   rtpqueue.use:
@@ -29,3 +34,6 @@ permissions:
   rtpqueue.bypass:
     description: Bypass queue and teleport instantly
     default: op
+  rtpqueue.toggle:
+    description: Permission to toggle queue broadcast messages.
+    default: true

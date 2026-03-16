@@ -7,36 +7,37 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-public class LeaveQueueCommand implements CommandExecutor {
+public class ToggleMessagesCommand implements CommandExecutor {
 
     private final RtpQueueAdvance plugin;
 
-    public LeaveQueueCommand(RtpQueueAdvance plugin) {
+    public ToggleMessagesCommand(RtpQueueAdvance plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("This command can only be used by players!");
+            sender.sendMessage("Only players can use this command.");
             return true;
         }
 
         Player player = (Player) sender;
-
-        if (!player.hasPermission("rtpqueue.use")) {
+        if (!player.hasPermission("rtpqueue.toggle")) {
             player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
                     plugin.getConfigManager().getNoPermissionMsg()));
             return true;
         }
 
-        if (!plugin.getQueueManager().isInQueue(player)) {
-            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
-                    plugin.getConfigManager().getNotInQueueMsg()));
-            return true;
-        }
+        plugin.getDatabaseManager().toggleMessages(player.getUniqueId());
 
-        plugin.getQueueManager().removeFromQueue(player);
+        boolean nowEnabled = plugin.getDatabaseManager().hasMessagesEnabled(player.getUniqueId());
+
+        String msg = nowEnabled ?
+                plugin.getConfigManager().getBroadcastMessageShown() :
+                plugin.getConfigManager().getBroadcastMessageHidden();
+
+        player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + msg));
         return true;
     }
 }

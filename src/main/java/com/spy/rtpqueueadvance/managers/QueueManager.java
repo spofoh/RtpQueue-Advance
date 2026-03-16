@@ -2,133 +2,250 @@ package com.spy.rtpqueueadvance.managers;
 
 import com.spy.rtpqueueadvance.RtpQueueAdvance;
 import com.spy.rtpqueueadvance.utils.WorldConfig;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
+import com.spy.rtpqueueadvance.utils.MessageCache;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import net.kyori.adventure.title.Title;
+import net.kyori.adventure.util.Ticks;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import org.bukkit.Material;
 
 public class QueueManager {
 
+    private static final EnumSet<Material> UNSAFE_MATERIALS = EnumSet.of(
+            Material.LAVA, Material.WATER, Material.MAGMA_BLOCK, Material.CACTUS,
+            Material.FIRE, Material.CAMPFIRE, Material.SOUL_CAMPFIRE,
+            Material.SWEET_BERRY_BUSH, Material.POWDER_SNOW, Material.COBWEB,
+            Material.OAK_LEAVES, Material.SPRUCE_LEAVES, Material.BIRCH_LEAVES,
+            Material.JUNGLE_LEAVES, Material.ACACIA_LEAVES, Material.DARK_OAK_LEAVES,
+            Material.AZALEA_LEAVES, Material.FLOWERING_AZALEA_LEAVES,
+            Material.MANGROVE_LEAVES, Material.CHERRY_LEAVES);
+
     private final RtpQueueAdvance plugin;
-    private final Map<String, Set<UUID>> worldQueues;
-    private final Map<String, BukkitTask> countdownTasks;
-    private final Map<UUID, BukkitTask> actionbarTasks;
+    private final Map<String, LinkedList<UUID>> waitingQueues;
+    private final Map<UUID, Match> activeMatches;
+    private final Map<UUID, ScheduledTask> actionbarTasks;
     private final Set<UUID> playersInQueue;
+
+    public static class Match {
+        private final Set<UUID> players;
+        private final String worldName;
+        private int countdown;
+        private ScheduledTask task;
+
+        public Match(Set<UUID> players, String worldName, int countdown) {
+            this.players = players;
+            this.worldName = worldName;
+            this.countdown = countdown;
+        }
+
+        public Set<UUID> getPlayers() {
+            return players;
+        }
+
+        public String getWorldName() {
+            return worldName;
+        }
+
+        public int getCountdown() {
+            return countdown;
+        }
+
+        public void decrementCountdown() {
+            this.countdown--;
+        }
+
+        public ScheduledTask getTask() {
+            return task;
+        }
+
+        public void setTask(ScheduledTask task) {
+            this.task = task;
+        }
+    }
 
     public QueueManager(RtpQueueAdvance plugin) {
         this.plugin = plugin;
-        this.worldQueues = new ConcurrentHashMap<>();
-        this.countdownTasks = new ConcurrentHashMap<>();
+        this.waitingQueues = new ConcurrentHashMap<>();
+        this.activeMatches = new ConcurrentHashMap<>();
         this.actionbarTasks = new ConcurrentHashMap<>();
         this.playersInQueue = ConcurrentHashMap.newKeySet();
     }
 
-    public boolean addToQueue(Player player, String worldName) {
+    public void addToQueue(Player player, String worldName) {
         WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
         if (config == null) {
-            player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                plugin.getConfigManager().getWorldNotFoundMsg());
-            return false;
+            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getWorldNotFoundMsg()));
+            return;
         }
 
         World world = Bukkit.getWorld(worldName);
         if (world == null) {
-            player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                plugin.getConfigManager().getWorldNotFoundMsg());
-            return false;
+            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getWorldNotFoundMsg()));
+            return;
         }
 
         if (player.hasPermission("rtpqueue.bypass")) {
             instantTeleport(player, worldName);
-            return true;
+            return;
         }
 
         if (playersInQueue.contains(player.getUniqueId())) {
-            player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                plugin.getConfigManager().getAlreadyInQueueMsg());
-            return false;
+            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getAlreadyInQueueMsg()));
+            return;
         }
 
-        worldQueues.computeIfAbsent(worldName, k -> ConcurrentHashMap.newKeySet()).add(player.getUniqueId());
         playersInQueue.add(player.getUniqueId());
 
-        int current = getQueueSize(worldName);
-        int max = plugin.getConfigManager().getMinPlayers();
-        
-        if (plugin.getConfigManager().isJoinMessageEnabled()) {
-            player.sendMessage(plugin.getConfigManager().getJoinMessageText());
+        LinkedList<UUID> queue = waitingQueues.computeIfAbsent(worldName, k -> new LinkedList<>());
+        synchronized (queue) {
+            queue.add(player.getUniqueId());
         }
-        
+
+        int current = getQueueSize(worldName);
+
+        if (plugin.getConfigManager().isJoinMessageEnabled()) {
+            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getJoinMessageText()));
+        }
+
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.5f);
-        
+
         if (plugin.getConfigManager().isTitleEnabled()) {
             sendJoinTitle(player);
         }
-        
+
         if (plugin.getConfigManager().isActionbarEnabled()) {
-            sendActionBar(player, current, max);
+            sendActionBar(player, current);
         }
-        
+
         if (plugin.getConfigManager().isBroadcastEnabled()) {
             broadcastQueueJoin(player);
         }
 
-        if (current >= max && !countdownTasks.containsKey(worldName)) {
-            startCountdown(worldName);
-        }
+        checkAndFormMatch(worldName);
+    }
 
-        return true;
+    private void checkAndFormMatch(String worldName) {
+        LinkedList<UUID> queue = waitingQueues.get(worldName);
+        if (queue == null)
+            return;
+
+        int max = plugin.getConfigManager().getMinPlayers();
+
+        synchronized (queue) {
+            while (queue.size() >= max) {
+                Set<UUID> matchPlayers = new HashSet<>();
+                for (int i = 0; i < max; i++) {
+                    matchPlayers.add(queue.poll());
+                }
+
+                Match match = new Match(matchPlayers, worldName, plugin.getConfigManager().getCountdownSeconds());
+                for (UUID uuid : matchPlayers) {
+                    activeMatches.put(uuid, match);
+                }
+
+                startMatchCountdown(match);
+            }
+        }
     }
 
     public void instantTeleport(Player player, String worldName) {
         WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
-        if (config == null) return;
-
+        if (config == null)
+            return;
         World world = Bukkit.getWorld(worldName);
-        if (world == null) return;
+        if (world == null)
+            return;
 
-        Location safeLoc = findSafeLocation(world, config);
-        if (safeLoc != null) {
-            player.teleport(safeLoc);
-            player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                plugin.getConfigManager().getTeleportedMsg());
-            player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
+        findAndTeleport(player, world, config, 0);
+    }
+
+    private Location findSafeLocation(World world, int x, int z) {
+        int y = world.getHighestBlockYAt(x, z);
+        int SAFE_RADIUS = 20;
+
+        for (int i = 0; i < 15; i++) {
+            Location checkLoc = new Location(world, x + 0.5, y - i, z + 0.5);
+            org.bukkit.block.Block ground = checkLoc.getBlock();
+            org.bukkit.block.Block feet = ground.getRelative(org.bukkit.block.BlockFace.UP);
+            org.bukkit.block.Block head = feet.getRelative(org.bukkit.block.BlockFace.UP);
+
+            Material groundType = ground.getType();
+
+            boolean materialSafe = groundType.isSolid() && !UNSAFE_MATERIALS.contains(groundType);
+
+            boolean spaceSafe = feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid();
+
+            if (materialSafe && spaceSafe) {
+                boolean playerNearby = world.getNearbyEntities(checkLoc, SAFE_RADIUS, SAFE_RADIUS, SAFE_RADIUS)
+                        .stream()
+                        .anyMatch(entity -> entity instanceof Player);
+
+                if (!playerNearby) {
+                    return checkLoc.add(0, 1, 0);
+                }
+            }
         }
+        return null;
     }
 
     public void removeFromQueue(Player player) {
         UUID uuid = player.getUniqueId();
-        
         cancelActionbarTask(uuid);
-        
-        for (Map.Entry<String, Set<UUID>> entry : worldQueues.entrySet()) {
-            if (entry.getValue().remove(uuid)) {
-                playersInQueue.remove(uuid);
-                
-                WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(entry.getKey());
-                if (config != null) {
-                    player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                        plugin.getConfigManager().getLeftQueueMsg()
-                            .replace("%world%", config.getDisplayName()));
-                }
-                
-                if (entry.getValue().size() < plugin.getConfigManager().getMinPlayers()) {
-                    BukkitTask task = countdownTasks.remove(entry.getKey());
-                    if (task != null) {
-                        task.cancel();
+
+        if (!playersInQueue.remove(uuid))
+            return;
+
+        Match match = activeMatches.remove(uuid);
+        if (match != null) {
+            String worldName = match.getWorldName();
+            if (match.getTask() != null)
+                match.getTask().cancel();
+
+            match.getPlayers().remove(uuid);
+
+            WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
+            if (config != null) {
+                player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
+                        plugin.getConfigManager().getLeftQueueMsg().replace("%world%", config.getDisplayName())));
+            }
+
+            LinkedList<UUID> queue = waitingQueues.computeIfAbsent(worldName, k -> new LinkedList<>());
+            synchronized (queue) {
+                for (UUID remainingUuid : match.getPlayers()) {
+                    activeMatches.remove(remainingUuid);
+                    queue.addFirst(remainingUuid);
+                    Player remainingPlayer = Bukkit.getPlayer(remainingUuid);
+                    if (remainingPlayer != null) {
+                        remainingPlayer.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix()
+                                + plugin.getConfigManager().getOpponentLeftMsg()));
                     }
                 }
-                break;
+            }
+
+            checkAndFormMatch(worldName);
+            return;
+        }
+
+        for (Map.Entry<String, LinkedList<UUID>> entry : waitingQueues.entrySet()) {
+            LinkedList<UUID> queue = entry.getValue();
+            synchronized (queue) {
+                if (queue.remove(uuid)) {
+                    WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(entry.getKey());
+                    if (config != null) {
+                        player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
+                                plugin.getConfigManager().getLeftQueueMsg().replace("%world%",
+                                        config.getDisplayName())));
+                    }
+                    break;
+                }
             }
         }
     }
@@ -138,321 +255,232 @@ public class QueueManager {
     }
 
     public String getQueueWorld(Player player) {
-        for (Map.Entry<String, Set<UUID>> entry : worldQueues.entrySet()) {
-            if (entry.getValue().contains(player.getUniqueId())) {
+        UUID uuid = player.getUniqueId();
+
+        Match match = activeMatches.get(uuid);
+        if (match != null)
+            return match.getWorldName();
+
+        for (Map.Entry<String, LinkedList<UUID>> entry : waitingQueues.entrySet()) {
+            if (entry.getValue().contains(uuid))
                 return entry.getKey();
-            }
         }
         return null;
     }
 
     public int getQueueSize(String worldName) {
-        Set<UUID> queue = worldQueues.get(worldName);
-        return queue == null ? 0 : queue.size();
-    }
+        int count = 0;
+        LinkedList<UUID> queue = waitingQueues.get(worldName);
+        if (queue != null)
+            count += queue.size();
 
-    private void startCountdown(String worldName) {
-        WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
-        if (config == null) return;
-
-        int countdown = plugin.getConfigManager().getCountdownSeconds();
-
-        BukkitTask task = new BukkitRunnable() {
-            int secondsLeft = countdown;
-
-            @Override
-            public void run() {
-                Set<UUID> queue = worldQueues.get(worldName);
-                if (queue == null || queue.isEmpty()) {
-                    countdownTasks.remove(worldName);
-                    cancel();
-                    return;
-                }
-
-                List<Player> players = new ArrayList<>();
-                for (UUID uuid : queue) {
-                    Player p = Bukkit.getPlayer(uuid);
-                    if (p != null && p.isOnline()) {
-                        players.add(p);
-                    }
-                }
-
-                if (players.size() < plugin.getConfigManager().getMinPlayers()) {
-                    countdownTasks.remove(worldName);
-                    cancel();
-                    return;
-                }
-
-                if (secondsLeft > 0) {
-                    String countdownMsg = plugin.getConfigManager().getTeleportationCountdownMsg()
-                        .replace("%seconds%", String.valueOf(secondsLeft));
-                    Sound sound = Sound.BLOCK_NOTE_BLOCK_HAT;
-                    float pitch = secondsLeft == 1 ? 1.5f : 1.0f;
-                    
-                    if (secondsLeft == countdown) {
-                        for (Player p : players) {
-                            if (plugin.getConfigManager().isTitleEnabled()) {
-                                sendFoundTitle(p);
-                            }
-                            p.sendMessage(plugin.getConfigManager().getPrefix() + countdownMsg);
-                            p.sendMessage(plugin.getConfigManager().getPrefix() + 
-                                plugin.getConfigManager().getOpponentFoundMsg());
-                            p.playSound(p.getLocation(), sound, 1.0f, pitch);
-                        }
-                    } else {
-                        for (Player p : players) {
-                            p.sendMessage(plugin.getConfigManager().getPrefix() + countdownMsg);
-                            p.playSound(p.getLocation(), sound, 1.0f, pitch);
-                        }
-                    }
-
-                    secondsLeft--;
-                } else {
-                    teleportPlayers(worldName, players);
-                    
-                    countdownTasks.remove(worldName);
-                    cancel();
-                }
+        for (Match match : activeMatches.values()) {
+            if (match.getWorldName().equals(worldName)) {
+                count++;
             }
-        }.runTaskTimer(plugin, 0L, 20L);
-
-        countdownTasks.put(worldName, task);
+        }
+        return count;
     }
 
-    private void teleportPlayers(String worldName, List<Player> players) {
+    private void startMatchCountdown(Match match) {
+        ScheduledTask task = Bukkit.getServer().getGlobalRegionScheduler().runAtFixedRate(plugin, (scheduledTask) -> {
+
+            List<Player> players = new ArrayList<>();
+            for (UUID uuid : match.getPlayers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline())
+                    players.add(p);
+            }
+
+            int currentCount = match.getCountdown();
+
+            if (currentCount > 0) {
+                String countdownMsg = plugin.getConfigManager().getTeleportationCountdownMsg().replace("%seconds%",
+                        String.valueOf(currentCount));
+                Sound sound = Sound.BLOCK_NOTE_BLOCK_HAT;
+                float pitch = currentCount == 1 ? 1.5f : 1.0f;
+
+                for (Player p : players) {
+                    if (currentCount == plugin.getConfigManager().getCountdownSeconds()) {
+                        if (plugin.getConfigManager().isTitleEnabled())
+                            sendFoundTitle(p);
+                        p.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix()
+                                + plugin.getConfigManager().getOpponentFoundMsg()));
+                    }
+                    p.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + countdownMsg));
+                    p.playSound(p.getLocation(), sound, 1.0f, pitch);
+                }
+                match.decrementCountdown();
+            } else {
+                teleportMatch(match, players);
+                for (UUID uuid : match.getPlayers()) {
+                    activeMatches.remove(uuid);
+                    playersInQueue.remove(uuid);
+                }
+                scheduledTask.cancel();
+            }
+        }, 1L, 20L);
+
+        match.setTask(task);
+    }
+
+    private void teleportMatch(Match match, List<Player> players) {
+        String worldName = match.getWorldName();
         WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
-        if (config == null) return;
-
+        if (config == null)
+            return;
         World world = Bukkit.getWorld(worldName);
-        if (world == null) return;
+        if (world == null)
+            return;
 
-        Set<UUID> queue = worldQueues.get(worldName);
-        
-        Location sharedLocation = findSafeLocation(world, config);
-        
-        for (Player player : players) {
-            if (sharedLocation != null) {
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        player.teleport(sharedLocation);
-                        player.sendMessage(plugin.getConfigManager().getPrefix() + 
-                            plugin.getConfigManager().getTeleportedMsg());
+        findAndTeleportGroup(players, world, config, match, 0);
+    }
+
+    private void findAndTeleport(Player player, World world, WorldConfig config, int attempts) {
+        if (attempts >= 10) {
+            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getNoSpotMsg()));
+            return;
+        }
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int range = random.nextInt(config.getMinRange(), config.getMaxRange() + 1);
+        double angle = random.nextDouble() * 2 * Math.PI;
+        int x = config.getCenterX() + (int) (range * Math.cos(angle));
+        int z = config.getCenterZ() + (int) (range * Math.sin(angle));
+
+        Bukkit.getServer().getRegionScheduler().execute(plugin, world, x >> 4, z >> 4, () -> {
+            Location safeLoc = findSafeLocation(world, x, z);
+
+            if (safeLoc != null) {
+                player.teleportAsync(safeLoc).thenAccept(success -> {
+                    if (success) {
+                        player.sendMessage(
+                                MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getTeleportedMsg()));
                         player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
                     }
-                }.runTask(plugin);
+                });
+            } else {
+                findAndTeleport(player, world, config, attempts + 1);
             }
-            
-            if (queue != null) {
-                queue.remove(player.getUniqueId());
-            }
-            playersInQueue.remove(player.getUniqueId());
-            cancelActionbarTask(player.getUniqueId());
-        }
+        });
     }
 
-    private Location findSafeLocation(World world, WorldConfig config) {
-        int attempts = 100;
+    private void findAndTeleportGroup(List<Player> players, World world, WorldConfig config, Match match,
+            int attempts) {
+        if (attempts >= 10) {
+            for (Player p : players) {
+                p.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getNoSpotMsg()));
+            }
+            return;
+        }
+
         ThreadLocalRandom random = ThreadLocalRandom.current();
+        int range = random.nextInt(config.getMinRange(), config.getMaxRange() + 1);
+        double angle = random.nextDouble() * 2 * Math.PI;
+        int x = config.getCenterX() + (int) (range * Math.cos(angle));
+        int z = config.getCenterZ() + (int) (range * Math.sin(angle));
 
-        for (int i = 0; i < attempts; i++) {
-            int range = random.nextInt(config.getMinRange(), config.getMaxRange() + 1);
-            double angle = random.nextDouble() * 2 * Math.PI;
-            
-            int x = config.getCenterX() + (int) (range * Math.cos(angle));
-            int z = config.getCenterZ() + (int) (range * Math.sin(angle));
-            
-            Location safeLoc = findSafeYAt(world, x, z);
-            if (safeLoc != null) {
-                return safeLoc;
-            }
-        }
+        Bukkit.getServer().getRegionScheduler().execute(plugin, world, x >> 4, z >> 4, () -> {
+            Location sharedLocation = findSafeLocation(world, x, z);
 
-        int fallbackX = config.getCenterX();
-        int fallbackZ = config.getCenterZ();
-        Location fallback = findSafeYAt(world, fallbackX, fallbackZ);
-        if (fallback != null) {
-            return fallback;
-        }
-        
-        return new Location(world, fallbackX + 0.5, 
-            world.getHighestBlockYAt(fallbackX, fallbackZ) + 1, 
-            fallbackZ + 0.5);
-    }
-
-    private Location findSafeYAt(World world, int x, int z) {
-        int maxY = world.getHighestBlockYAt(x, z);
-        
-        if (maxY < 1) return null;
-        
-        for (int y = maxY; y >= 1; y--) {
-            Block ground = world.getBlockAt(x, y, z);
-            Block feet = world.getBlockAt(x, y + 1, z);
-            Block head = world.getBlockAt(x, y + 2, z);
-            
-            if (!isSafeGround(ground)) continue;
-            if (!isSafeAir(feet)) continue;
-            if (!isSafeAir(head)) continue;
-            
-            if (hasDangerNearby(world, x, y + 1, z)) continue;
-            
-            return new Location(world, x + 0.5, y + 1, z + 0.5);
-        }
-        
-        return null;
-    }
-
-    private boolean isSafeGround(Block block) {
-        if (block == null) return false;
-        
-        switch (block.getType()) {
-            case LAVA:
-            case FIRE:
-            case CACTUS:
-            case MAGMA_BLOCK:
-            case CAMPFIRE:
-            case SOUL_CAMPFIRE:
-            case SWEET_BERRY_BUSH:
-            case WITHER_ROSE:
-            case POWDER_SNOW:
-            case WATER:
-            case BUBBLE_COLUMN:
-            case COBWEB:
-            case AIR:
-            case CAVE_AIR:
-            case VOID_AIR:
-                return false;
-            default:
-                return block.getType().isSolid();
-        }
-    }
-
-    private boolean isSafeAir(Block block) {
-        if (block == null) return false;
-        
-        switch (block.getType()) {
-            case LAVA:
-            case FIRE:
-            case CACTUS:
-            case SWEET_BERRY_BUSH:
-            case WITHER_ROSE:
-            case WATER:
-            case COBWEB:
-                return false;
-            default:
-                return block.isPassable() || block.getType() == org.bukkit.Material.AIR;
-        }
-    }
-
-    private boolean hasDangerNearby(World world, int x, int y, int z) {
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                Block nearby = world.getBlockAt(x + dx, y, z + dz);
-                Block nearbyBelow = world.getBlockAt(x + dx, y - 1, z + dz);
-                
-                if (isDangerousBlock(nearby) || isDangerousBlock(nearbyBelow)) {
-                    return true;
+            if (sharedLocation != null) {
+                for (Player player : players) {
+                    player.teleportAsync(sharedLocation).thenAccept(success -> {
+                        if (success) {
+                            player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix()
+                                    + plugin.getConfigManager().getTeleportedMsg()));
+                            player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
+                        }
+                    });
+                    cancelActionbarTask(player.getUniqueId());
                 }
+            } else {
+                findAndTeleportGroup(players, world, config, match, attempts + 1);
             }
-        }
-        return false;
-    }
-
-    private boolean isDangerousBlock(Block block) {
-        if (block == null) return false;
-        
-        switch (block.getType()) {
-            case LAVA:
-            case FIRE:
-            case CACTUS:
-            case MAGMA_BLOCK:
-            case CAMPFIRE:
-            case SOUL_CAMPFIRE:
-                return true;
-            default:
-                return false;
-        }
+        });
     }
 
     public void clearAllQueues() {
-        for (BukkitTask task : countdownTasks.values()) {
-            task.cancel();
+        actionbarTasks.values().forEach(ScheduledTask::cancel);
+        for (Match match : activeMatches.values()) {
+            if (match.getTask() != null)
+                match.getTask().cancel();
         }
-        for (BukkitTask task : actionbarTasks.values()) {
-            task.cancel();
-        }
-        countdownTasks.clear();
         actionbarTasks.clear();
-        worldQueues.clear();
+        waitingQueues.clear();
+        activeMatches.clear();
         playersInQueue.clear();
     }
-    
+
+    private void sendActionBar(Player player, int initialSize) {
+        UUID uuid = player.getUniqueId();
+        cancelActionbarTask(uuid);
+
+        int interval = plugin.getConfigManager().getActionbarInterval();
+
+        ScheduledTask task = player.getScheduler().runAtFixedRate(plugin, (t) -> {
+            if (!player.isOnline() || !playersInQueue.contains(uuid)) {
+                t.cancel();
+                actionbarTasks.remove(uuid);
+                return;
+            }
+
+            String worldName = getQueueWorld(player);
+            int currentSize = worldName != null ? getQueueSize(worldName) : initialSize;
+
+            String message = plugin.getConfigManager().getActionbarMessage()
+                    .replace("%current%", String.valueOf(currentSize))
+                    .replace("%max%", String.valueOf(plugin.getConfigManager().getMinPlayers()));
+
+            player.sendActionBar(MessageCache.getComponent(message));
+        }, null, 1L, interval);
+
+        actionbarTasks.put(player.getUniqueId(), task);
+    }
+
+    private void cancelActionbarTask(UUID uuid) {
+        ScheduledTask task = actionbarTasks.remove(uuid);
+        if (task != null)
+            task.cancel();
+    }
+
     private void broadcastQueueJoin(Player player) {
         String header = plugin.getConfigManager().getBroadcastHeader();
         List<String> lines = plugin.getConfigManager().getBroadcastLines();
         String footer = plugin.getConfigManager().getBroadcastFooter();
-        
+
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            onlinePlayer.sendMessage(header);
+            if (!plugin.getDatabaseManager().hasMessagesEnabled(onlinePlayer.getUniqueId())) {
+                continue;
+            }
+
+            onlinePlayer.sendMessage(MessageCache.getComponent(header));
             for (String line : lines) {
-                onlinePlayer.sendMessage(line.replace("%player%", player.getName()));
+                onlinePlayer.sendMessage(MessageCache.getComponent(line.replace("%player%", player.getName())));
             }
-            onlinePlayer.sendMessage(footer);
+            onlinePlayer.sendMessage(MessageCache.getComponent(footer));
         }
     }
-    
+
     private void sendJoinTitle(Player player) {
-        String title = plugin.getConfigManager().getTitleJoinText();
-        String subtitle = plugin.getConfigManager().getTitleJoinSubtitle();
-        int fadeIn = plugin.getConfigManager().getTitleFadeIn();
-        int stay = plugin.getConfigManager().getTitleStay();
-        int fadeOut = plugin.getConfigManager().getTitleFadeOut();
-        
-        player.sendTitle(title, subtitle, fadeIn, stay, fadeOut);
+        Title title = Title.title(
+                MessageCache.getComponent(plugin.getConfigManager().getTitleJoinText()),
+                MessageCache.getComponent(plugin.getConfigManager().getTitleJoinSubtitle()),
+                Title.Times.times(Ticks.duration(plugin.getConfigManager().getTitleFadeIn()),
+                                  Ticks.duration(plugin.getConfigManager().getTitleStay()),
+                                  Ticks.duration(plugin.getConfigManager().getTitleFadeOut()))
+        );
+        player.showTitle(title);
     }
-    
+
     private void sendFoundTitle(Player player) {
-        String title = plugin.getConfigManager().getTitleFoundText();
-        String subtitle = plugin.getConfigManager().getTitleFoundSubtitle();
-        int fadeIn = plugin.getConfigManager().getTitleFadeIn();
-        int stay = plugin.getConfigManager().getTitleStay();
-        int fadeOut = plugin.getConfigManager().getTitleFadeOut();
-        
-        player.sendTitle(title, subtitle, fadeIn, stay, fadeOut);
-    }
-    
-    private void sendActionBar(Player player, int current, int max) {
-        cancelActionbarTask(player.getUniqueId());
-        
-        int interval = plugin.getConfigManager().getActionbarInterval();
-        
-        BukkitTask task = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!player.isOnline() || !playersInQueue.contains(player.getUniqueId())) {
-                    cancelActionbarTask(player.getUniqueId());
-                    return;
-                }
-                
-                String worldName = getQueueWorld(player);
-                int currentSize = worldName != null ? getQueueSize(worldName) : current;
-                int maxSize = plugin.getConfigManager().getMinPlayers();
-                
-                String message = plugin.getConfigManager().getActionbarMessage()
-                    .replace("%current%", String.valueOf(currentSize))
-                    .replace("%max%", String.valueOf(maxSize));
-                
-                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(message));
-            }
-        }.runTaskTimer(plugin, 0L, interval);
-        
-        actionbarTasks.put(player.getUniqueId(), task);
-    }
-    
-    private void cancelActionbarTask(UUID uuid) {
-        BukkitTask task = actionbarTasks.remove(uuid);
-        if (task != null) {
-            task.cancel();
-        }
+        Title title = Title.title(
+                MessageCache.getComponent(plugin.getConfigManager().getTitleFoundText()),
+                MessageCache.getComponent(plugin.getConfigManager().getTitleFoundSubtitle()),
+                Title.Times.times(Ticks.duration(plugin.getConfigManager().getTitleFadeIn()),
+                                  Ticks.duration(plugin.getConfigManager().getTitleStay()),
+                                  Ticks.duration(plugin.getConfigManager().getTitleFadeOut()))
+        );
+        player.showTitle(title);
     }
 }
