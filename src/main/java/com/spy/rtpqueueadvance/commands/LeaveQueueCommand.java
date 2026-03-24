@@ -6,6 +6,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.jspecify.annotations.NonNull;
 
 public class LeaveQueueCommand implements CommandExecutor {
 
@@ -16,13 +17,11 @@ public class LeaveQueueCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player)) {
+    public boolean onCommand(@NonNull CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
+        if (!(sender instanceof Player player)) {
             sender.sendMessage("This command can only be used by players!");
             return true;
         }
-
-        Player player = (Player) sender;
 
         if (!player.hasPermission("rtpqueue.use")) {
             player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +

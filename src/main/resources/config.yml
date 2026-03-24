@@ -12,7 +12,7 @@ gui:
 
 # Queue Settings
 queue:
-  min-players: 2           # Minimum players needed to start teleport
+  max-players: 2           # Maximum players needed to start teleport
   countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
 
 # Messages

@@ -10,7 +10,6 @@ public class MessageCache {
 
     private static final int MAX_CACHE_SIZE = 500;
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacyAmpersand();
 
     private static final Map<String, Component> cache = new LinkedHashMap<>(16, 0.75f, true) {
         @Override

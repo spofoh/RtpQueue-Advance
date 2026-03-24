@@ -22,7 +22,9 @@ public class DatabaseManager {
     private void init() {
         try {
             File dataFolder = plugin.getDataFolder();
-            if (!dataFolder.exists()) dataFolder.mkdirs();
+            if (dataFolder.mkdirs()) {
+                plugin.getLogger().log(Level.INFO, "Data folder created.");
+            }
 
             Class.forName("org.sqlite.JDBC");
             connection = DriverManager.getConnection("jdbc:sqlite:" + dataFolder + "/player_data.db");
@@ -53,7 +55,7 @@ public class DatabaseManager {
                     }
                 }
             } catch (SQLException e) {
-                e.printStackTrace();
+                plugin.getLogger().log(Level.SEVERE, "Could not load player data", e);
             }
         });
     }
@@ -95,7 +97,7 @@ public class DatabaseManager {
                 connection.close();
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            plugin.getLogger().log(Level.SEVERE, "Could not close connection", e);
         }
     }
 }

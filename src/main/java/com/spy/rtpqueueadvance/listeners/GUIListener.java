@@ -8,12 +8,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
+
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class GUIListener implements Listener {
 
     private final RtpQueueAdvance plugin;
+
+    private final Set<UUID> processingPlayers = ConcurrentHashMap.newKeySet();
 
     public GUIListener(RtpQueueAdvance plugin) {
         this.plugin = plugin;
@@ -27,6 +34,12 @@ public class GUIListener implements Listener {
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
+        if (event.getRawSlot() < 0) return;
+
+        if (event.getRawSlot() >= event.getInventory().getSize()) {
+            return;
+        }
+
         ItemStack clickedItem = event.getCurrentItem();
         if (clickedItem == null || clickedItem.getType() == Material.AIR) return;
 
@@ -34,17 +47,33 @@ public class GUIListener implements Listener {
         String worldName = plugin.getWorldSelectionGUI().getWorldFromSlot(slot);
 
         if (worldName != null) {
-            player.closeInventory();
-            String currentQueue = plugin.getQueueManager().getQueueWorld(player);
+            processingPlayers.add(player.getUniqueId());
 
-            if (currentQueue != null && currentQueue.equals(worldName)) {
+            player.updateInventory();
+
+            handleQueueLogic(player, worldName);
+
+            player.closeInventory();
+        }
+    }
+
+    private void handleQueueLogic(Player player, String worldName) {
+        String currentQueue = plugin.getQueueManager().getQueueWorld(player);
+
+        if (currentQueue != null && currentQueue.equals(worldName)) {
+            plugin.getQueueManager().removeFromQueue(player);
+        } else {
+            if (currentQueue != null) {
                 plugin.getQueueManager().removeFromQueue(player);
-            } else {
-                if (currentQueue != null) {
-                    plugin.getQueueManager().removeFromQueue(player);
-                }
-                plugin.getQueueManager().addToQueue(player, worldName);
             }
+            plugin.getQueueManager().addToQueue(player, worldName);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof WorldSelectionGUI.RtpQueueHolder) {
+            processingPlayers.remove(event.getPlayer().getUniqueId());
         }
     }
 

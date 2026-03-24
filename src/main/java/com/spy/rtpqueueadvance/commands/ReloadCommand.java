@@ -5,6 +5,7 @@ import com.spy.rtpqueueadvance.utils.MessageCache;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.jspecify.annotations.NonNull;
 
 public class ReloadCommand implements CommandExecutor {
 
@@ -15,7 +16,7 @@ public class ReloadCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(CommandSender sender, @NonNull Command command, @NonNull String label, String @NonNull [] args) {
         if (!sender.hasPermission("rtpqueue.admin")) {
             sender.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
                     plugin.getConfigManager().getNoPermissionMsg()));

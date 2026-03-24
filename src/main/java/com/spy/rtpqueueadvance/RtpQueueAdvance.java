@@ -12,11 +12,11 @@ import com.spy.rtpqueueadvance.managers.ConfigManager;
 import com.spy.rtpqueueadvance.managers.DatabaseManager;
 import com.spy.rtpqueueadvance.managers.QueueManager;
 import com.spy.rtpqueueadvance.utils.MessageCache;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class RtpQueueAdvance extends JavaPlugin {
 
-    private static RtpQueueAdvance instance;
     private ConfigManager configManager;
     private QueueManager queueManager;
     private DatabaseManager databaseManager;
@@ -24,19 +24,29 @@ public class RtpQueueAdvance extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        instance = this;
-        
         saveDefaultConfig();
         
         configManager = new ConfigManager(this);
         this.databaseManager = new DatabaseManager(this);
         queueManager = new QueueManager(this);
         worldSelectionGUI = new WorldSelectionGUI(this);
-        
-        getCommand("rtpqueue").setExecutor(new RtpQueueCommand(this));
-        getCommand("rtpqueueleave").setExecutor(new LeaveQueueCommand(this));
-        getCommand("rtpqueuereload").setExecutor(new ReloadCommand(this));
-        getCommand("rtpqueuetoggle").setExecutor(new ToggleMessagesCommand(this));
+
+        PluginCommand rtpqueue = getCommand("rtpqueue");
+        if (rtpqueue != null) {
+            rtpqueue.setExecutor(new RtpQueueCommand(this));
+        }
+        PluginCommand rtpqueueleave = getCommand("rtpqueueleave");
+        if (rtpqueueleave != null) {
+            rtpqueueleave.setExecutor(new LeaveQueueCommand(this));
+        }
+        PluginCommand rtpqueuereload  = getCommand("rtpqueuereload");
+        if (rtpqueuereload != null) {
+            rtpqueuereload.setExecutor(new ReloadCommand(this));
+        }
+        PluginCommand rtpqueuetoggle = getCommand("rtpqueuetoggle");
+        if (rtpqueuetoggle != null) {
+            rtpqueuetoggle.setExecutor(new ToggleMessagesCommand(this));
+        }
         
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
@@ -63,10 +73,6 @@ public class RtpQueueAdvance extends JavaPlugin {
 
     public DatabaseManager getDatabaseManager() {
         return databaseManager;
-    }
-
-    public static RtpQueueAdvance getInstance() {
-        return instance;
     }
 
     public ConfigManager getConfigManager() {

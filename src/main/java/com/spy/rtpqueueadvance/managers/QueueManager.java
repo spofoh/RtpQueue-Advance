@@ -137,7 +137,7 @@ public class QueueManager {
         if (queue == null)
             return;
 
-        int max = plugin.getConfigManager().getMinPlayers();
+        int max = plugin.getConfigManager().getMaxPlayers();
 
         synchronized (queue) {
             while (queue.size() >= max) {
@@ -214,7 +214,7 @@ public class QueueManager {
             WorldConfig config = plugin.getConfigManager().getWorldConfigs().get(worldName);
             if (config != null) {
                 player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
-                        plugin.getConfigManager().getLeftQueueMsg().replace("%world%", config.getDisplayName())));
+                        plugin.getConfigManager().getLeftQueueMsg().replace("%world%", config.displayName())));
             }
 
             LinkedList<UUID> queue = waitingQueues.computeIfAbsent(worldName, k -> new LinkedList<>());
@@ -242,7 +242,7 @@ public class QueueManager {
                     if (config != null) {
                         player.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() +
                                 plugin.getConfigManager().getLeftQueueMsg().replace("%world%",
-                                        config.getDisplayName())));
+                                        config.displayName())));
                     }
                     break;
                 }
@@ -333,7 +333,7 @@ public class QueueManager {
         if (world == null)
             return;
 
-        findAndTeleportGroup(players, world, config, match, 0);
+        findAndTeleportGroup(players, world, config, 0);
     }
 
     private void findAndTeleport(Player player, World world, WorldConfig config, int attempts) {
@@ -343,10 +343,10 @@ public class QueueManager {
         }
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int range = random.nextInt(config.getMinRange(), config.getMaxRange() + 1);
+        int range = random.nextInt(config.minRange(), config.maxRange() + 1);
         double angle = random.nextDouble() * 2 * Math.PI;
-        int x = config.getCenterX() + (int) (range * Math.cos(angle));
-        int z = config.getCenterZ() + (int) (range * Math.sin(angle));
+        int x = config.centerX() + (int) (range * Math.cos(angle));
+        int z = config.centerZ() + (int) (range * Math.sin(angle));
 
         Bukkit.getServer().getRegionScheduler().execute(plugin, world, x >> 4, z >> 4, () -> {
             Location safeLoc = findSafeLocation(world, x, z);
@@ -365,8 +365,8 @@ public class QueueManager {
         });
     }
 
-    private void findAndTeleportGroup(List<Player> players, World world, WorldConfig config, Match match,
-            int attempts) {
+    private void findAndTeleportGroup(List<Player> players, World world, WorldConfig config,
+                                      int attempts) {
         if (attempts >= 10) {
             for (Player p : players) {
                 p.sendMessage(MessageCache.getComponent(plugin.getConfigManager().getPrefix() + plugin.getConfigManager().getNoSpotMsg()));
@@ -375,10 +375,10 @@ public class QueueManager {
         }
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int range = random.nextInt(config.getMinRange(), config.getMaxRange() + 1);
+        int range = random.nextInt(config.minRange(), config.maxRange() + 1);
         double angle = random.nextDouble() * 2 * Math.PI;
-        int x = config.getCenterX() + (int) (range * Math.cos(angle));
-        int z = config.getCenterZ() + (int) (range * Math.sin(angle));
+        int x = config.centerX() + (int) (range * Math.cos(angle));
+        int z = config.centerZ() + (int) (range * Math.sin(angle));
 
         Bukkit.getServer().getRegionScheduler().execute(plugin, world, x >> 4, z >> 4, () -> {
             Location sharedLocation = findSafeLocation(world, x, z);
@@ -395,7 +395,7 @@ public class QueueManager {
                     cancelActionbarTask(player.getUniqueId());
                 }
             } else {
-                findAndTeleportGroup(players, world, config, match, attempts + 1);
+                findAndTeleportGroup(players, world, config, attempts + 1);
             }
         });
     }
@@ -430,7 +430,7 @@ public class QueueManager {
 
             String message = plugin.getConfigManager().getActionbarMessage()
                     .replace("%current%", String.valueOf(currentSize))
-                    .replace("%max%", String.valueOf(plugin.getConfigManager().getMinPlayers()));
+                    .replace("%max%", String.valueOf(plugin.getConfigManager().getMaxPlayers()));
 
             player.sendActionBar(MessageCache.getComponent(message));
         }, null, 1L, interval);

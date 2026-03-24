@@ -17,11 +17,10 @@ public class ConfigManager {
 
     private String guiTitle;
     private int guiSize;
-    private int minPlayers;
+    private int maxPlayers;
     private int countdownSeconds;
 
     private String prefix;
-    private String joinedQueueMsg;
     private String leftQueueMsg;
     private String opponentFoundMsg;
     private String teleportationCountdownMsg;
@@ -74,11 +73,10 @@ public class ConfigManager {
             guiSize = 27;
         }
 
-        minPlayers = plugin.getConfig().getInt("queue.min-players", 2);
+        maxPlayers = plugin.getConfig().getInt("queue.max-players", 2);
         countdownSeconds = plugin.getConfig().getInt("queue.countdown-seconds", 3);
 
         prefix = plugin.getConfig().getString("messages.prefix", "&aRTPQUEUE &8» &r");
-        joinedQueueMsg = plugin.getConfig().getString("messages.joined-queue", "&aYou joined the queue for &e%world%&a!");
         leftQueueMsg = plugin.getConfig().getString("messages.left-queue", "&cYou left the queue for &e%world%&c.");
         opponentFoundMsg = plugin.getConfig().getString("messages.opponent-found", "&aOpponent found, you will be teleported!");
         teleportationCountdownMsg = plugin.getConfig().getString("messages.teleportation-countdown", "&eTeleportation in &c%seconds%s");
@@ -108,9 +106,7 @@ public class ConfigManager {
             broadcastLines.add("&6👑&e%player% &7is waiting for");
             broadcastLines.add("&7an opponent to fight!");
         } else {
-            for (String line : rawLines) {
-                broadcastLines.add(line);
-            }
+            broadcastLines.addAll(rawLines);
         }
         broadcastFooter = plugin.getConfig().getString("broadcast.footer", "&a+ /rtpqueue +");
 
@@ -202,8 +198,8 @@ public class ConfigManager {
         return guiSize;
     }
 
-    public int getMinPlayers() {
-        return minPlayers;
+    public int getMaxPlayers() {
+        return maxPlayers;
     }
 
     public int getCountdownSeconds() {
@@ -212,10 +208,6 @@ public class ConfigManager {
 
     public String getPrefix() {
         return prefix;
-    }
-
-    public String getJoinedQueueMsg() {
-        return joinedQueueMsg;
     }
 
     public String getLeftQueueMsg() {

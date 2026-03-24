@@ -39,8 +39,8 @@ public class WorldSelectionGUI {
         fillBorders(inventory, config.getGuiSize());
 
         for (WorldConfig worldConfig : config.getWorldConfigs().values()) {
-            if (worldConfig.getSlot() >= 0 && worldConfig.getSlot() < config.getGuiSize()) {
-                inventory.setItem(worldConfig.getSlot(), createWorldItem(worldConfig, player));
+            if (worldConfig.slot() >= 0 && worldConfig.slot() < config.getGuiSize()) {
+                inventory.setItem(worldConfig.slot(), createWorldItem(worldConfig, player));
             }
         }
         player.openInventory(inventory);
@@ -67,23 +67,23 @@ public class WorldSelectionGUI {
     }
 
     private ItemStack createWorldItem(WorldConfig worldConfig, Player player) {
-        ItemStack item = new ItemStack(worldConfig.getMaterial());
+        ItemStack item = new ItemStack(worldConfig.material());
         item.editMeta(meta -> {
-            meta.displayName(MessageCache.getComponent(worldConfig.getDisplayName()));
+            meta.displayName(MessageCache.getComponent(worldConfig.displayName()));
             List<Component> lore = new ArrayList<>();
-            List<String> layout = worldConfig.getWorldLore();
+            List<String> layout = worldConfig.worldLore();
 
             if (layout != null) {
-                int queueSize = plugin.getQueueManager().getQueueSize(worldConfig.getWorldName());
-                int minPlayers = plugin.getConfigManager().getMinPlayers();
+                int queueSize = plugin.getQueueManager().getQueueSize(worldConfig.worldName());
+                int minPlayers = plugin.getConfigManager().getMaxPlayers();
                 String playerQueue = plugin.getQueueManager().getQueueWorld(player);
-                boolean inThisQueue = playerQueue != null && playerQueue.equals(worldConfig.getWorldName());
+                boolean inThisQueue = playerQueue != null && playerQueue.equals(worldConfig.worldName());
 
                 String statusText = inThisQueue ? plugin.getConfigManager().getGuiStatusInQueue() : plugin.getConfigManager().getGuiStatusNotInQueue();
 
                 for (String line : layout) {
                     lore.add(MessageCache.getComponent(line
-                            .replace("%world%", worldConfig.getDisplayName())
+                            .replace("%world%", worldConfig.displayName())
                             .replace("%current%", String.valueOf(queueSize))
                             .replace("%max%", String.valueOf(minPlayers))
                             .replace("%status%", statusText)));
@@ -96,7 +96,7 @@ public class WorldSelectionGUI {
 
     public String getWorldFromSlot(int slot) {
         for (WorldConfig config : plugin.getConfigManager().getWorldConfigs().values()) {
-            if (config.getSlot() == slot) return config.getWorldName();
+            if (config.slot() == slot) return config.worldName();
         }
         return null;
     }
