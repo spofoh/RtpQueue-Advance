@@ -20,6 +20,8 @@ public class ConfigManager {
     private int maxPlayers;
     private int countdownSeconds;
 
+    private List<String> blacklistedBiomes;
+
     private String prefix;
     private String leftQueueMsg;
     private String opponentFoundMsg;
@@ -72,6 +74,8 @@ public class ConfigManager {
         if (guiSize % 9 != 0 || guiSize < 9 || guiSize > 54) {
             guiSize = 27;
         }
+
+        blacklistedBiomes = plugin.getConfig().getStringList("rtp-settings.blacklisted-biomes");
 
         maxPlayers = plugin.getConfig().getInt("queue.max-players", 2);
         countdownSeconds = plugin.getConfig().getInt("queue.countdown-seconds", 3);
@@ -193,6 +197,8 @@ public class ConfigManager {
     public String getGuiTitle() {
         return guiTitle;
     }
+
+    public List<String> getBlacklistedBiomes() { return blacklistedBiomes; }
 
     public int getGuiSize() {
         return guiSize;

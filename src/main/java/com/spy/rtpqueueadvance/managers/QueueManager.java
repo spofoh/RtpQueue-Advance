@@ -6,16 +6,13 @@ import com.spy.rtpqueueadvance.utils.MessageCache;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.title.Title;
 import net.kyori.adventure.util.Ticks;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Sound;
-import org.bukkit.World;
+import org.bukkit.*;
+import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import org.bukkit.Material;
 
 public class QueueManager {
 
@@ -168,12 +165,24 @@ public class QueueManager {
     }
 
     private Location findSafeLocation(World world, int x, int z) {
-        int y = world.getHighestBlockYAt(x, z);
-        int SAFE_RADIUS = 20;
+        Biome biome = world.getBiome(x, 64, z);
+        if (isBiomeBlacklisted(biome)) {
+            return null;
+        }
 
-        for (int i = 0; i < 15; i++) {
-            Location checkLoc = new Location(world, x + 0.5, y - i, z + 0.5);
+        int y = world.getHighestBlockYAt(x, z);
+
+        for (int i = 0; i < 10; i++) {
+            int currentY = y - i;
+            if (currentY < world.getMinHeight()) break;
+
+            Location checkLoc = new Location(world, x + 0.5, currentY, z + 0.5);
             org.bukkit.block.Block ground = checkLoc.getBlock();
+
+            if (ground.isLiquid()) {
+                return null;
+            }
+
             org.bukkit.block.Block feet = ground.getRelative(org.bukkit.block.BlockFace.UP);
             org.bukkit.block.Block head = feet.getRelative(org.bukkit.block.BlockFace.UP);
 
@@ -181,19 +190,39 @@ public class QueueManager {
 
             boolean materialSafe = groundType.isSolid() && !UNSAFE_MATERIALS.contains(groundType);
 
-            boolean spaceSafe = feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid();
+            boolean spaceSafe = feet.isPassable() && head.isPassable() && !feet.isLiquid();
 
             if (materialSafe && spaceSafe) {
+                int SAFE_RADIUS = 20;
                 boolean playerNearby = world.getNearbyEntities(checkLoc, SAFE_RADIUS, SAFE_RADIUS, SAFE_RADIUS)
                         .stream()
                         .anyMatch(entity -> entity instanceof Player);
 
                 if (!playerNearby) {
+                    if (world.getEnvironment() == World.Environment.THE_END) {
+                        if (!checkLoc.clone().add(2, -1, 0).getBlock().getType().isSolid()) return null;
+                    }
                     return checkLoc.add(0, 1, 0);
                 }
             }
         }
         return null;
+    }
+
+    private boolean isBiomeBlacklisted(Biome biome) {
+        List<String> blacklisted = plugin.getConfigManager().getBlacklistedBiomes();
+        if (blacklisted == null || blacklisted.isEmpty()) return false;
+
+        NamespacedKey key = biome.getKey();
+        String fullKey = key.toString();
+        String shortKey = key.getKey();
+
+        for (String s : blacklisted) {
+            if (s.equalsIgnoreCase(fullKey) || s.equalsIgnoreCase(shortKey)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void removeFromQueue(Player player) {

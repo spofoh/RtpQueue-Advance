@@ -15,6 +15,24 @@ queue:
   max-players: 2           # Maximum players needed to start teleport
   countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
 
+rtp-settings:
+  # List of biomes to avoid.
+  # Use Bukkit Biome names (e.g., OCEAN, DEEP_OCEAN, DARK_FOREST)
+  # Full list: https://jd.papermc.io/paper/1.21/org/bukkit/block/Biome.html
+  blacklisted-biomes:
+    - "OCEAN"
+    - "DEEP_OCEAN"
+    - "LUKEWARM_OCEAN"
+    - "WARM_OCEAN"
+    - "COLD_OCEAN"
+    - "FROZEN_OCEAN"
+    - "DEEP_LUKEWARM_OCEAN"
+    - "DEEP_WARM_OCEAN"
+    - "DEEP_COLD_OCEAN"
+    - "DEEP_FROZEN_OCEAN"
+    - "RIVER"
+    - "FROZEN_RIVER"
+
 # Messages
 messages:
   prefix: "&aRTPQUEUE &8» &r"
