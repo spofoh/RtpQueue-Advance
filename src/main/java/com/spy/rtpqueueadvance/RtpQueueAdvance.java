@@ -11,6 +11,7 @@ import com.spy.rtpqueueadvance.listeners.PlayerQuitListener;
 import com.spy.rtpqueueadvance.managers.ConfigManager;
 import com.spy.rtpqueueadvance.managers.DatabaseManager;
 import com.spy.rtpqueueadvance.managers.QueueManager;
+import com.spy.rtpqueueadvance.managers.RedisQueueManager;
 import com.spy.rtpqueueadvance.utils.MessageCache;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -20,15 +21,18 @@ public class RtpQueueAdvance extends JavaPlugin {
     private ConfigManager configManager;
     private QueueManager queueManager;
     private DatabaseManager databaseManager;
+    private RedisQueueManager redisQueueManager;
     private WorldSelectionGUI worldSelectionGUI;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
         
         configManager = new ConfigManager(this);
         this.databaseManager = new DatabaseManager(this);
-        queueManager = new QueueManager(this);
+        redisQueueManager = new RedisQueueManager(this);
+        queueManager = new QueueManager(this, redisQueueManager);
         worldSelectionGUI = new WorldSelectionGUI(this);
 
         PluginCommand rtpqueue = getCommand("rtpqueue");
@@ -62,11 +66,15 @@ public class RtpQueueAdvance extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
         if (queueManager != null) {
             queueManager.clearAllQueues();
         }
         if (databaseManager != null) {
             databaseManager.closeConnection();
+        }
+        if (redisQueueManager != null) {
+            redisQueueManager.close();
         }
         getLogger().info("RtpQueue Advance has been disabled!");
     }
@@ -83,6 +91,10 @@ public class RtpQueueAdvance extends JavaPlugin {
         return queueManager;
     }
 
+    public RedisQueueManager getRedisQueueManager() {
+        return redisQueueManager;
+    }
+
     public WorldSelectionGUI getWorldSelectionGUI() {
         return worldSelectionGUI;
     }
@@ -93,7 +105,12 @@ public class RtpQueueAdvance extends JavaPlugin {
             queueManager.clearAllQueues();
         }
         MessageCache.clear();
+        if (redisQueueManager != null) {
+            redisQueueManager.close();
+        }
         configManager = new ConfigManager(this);
+        redisQueueManager = new RedisQueueManager(this);
+        queueManager = new QueueManager(this, redisQueueManager);
         worldSelectionGUI = new WorldSelectionGUI(this);
     }
 }

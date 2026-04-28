@@ -1,0 +1,21 @@
+# Cross-server routing
+# - local-server-id must be globally unique in your network (e.g. eu-overworld, na-overworld, eu-dimensions)
+# - worlds.<world>.server and worlds.<world>.region are configured in config.yml
+# - server-routes are region routes used ONLY when the target world is in another region
+# - same-region moves use proxy "Connect" to worlds.<world>.server
+# - cross-server requires queue.mode=redis
+# - velocity must have bungee-plugin-message-channel=true and accepts-transfers=true
+cross-server:
+  enabled: false
+  local-server-id: "eu-overworld"
+  transfer-intent-ttl-seconds: 30
+  server-routes:
+    eu:
+      host: "eu.domain.com"
+      port: 25565
+    na:
+      host: "na.domain.com"
+      port: 25565
+    asia:
+      host: "asia.domain.com"
+      port: 25565

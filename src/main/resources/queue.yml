@@ -1,0 +1,12 @@
+# Queue Settings
+queue:
+  mode: "local"            # local or redis
+  max-players: 2           # Maximum players needed to start teleport
+  countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
+  redis:
+    host: "127.0.0.1"
+    port: 6379
+    password: ""
+    database: 0
+    key-prefix: "rtpqueue"
+    match-lock-seconds: 2

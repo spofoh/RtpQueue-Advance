@@ -16,5 +16,6 @@ public class PlayerJoinListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         plugin.getDatabaseManager().loadPlayerData(event.getPlayer().getUniqueId());
+        plugin.getQueueManager().processInboundTransfer(event.getPlayer());
     }
 }

@@ -7,13 +7,11 @@ gui:
   size: 27  # 9, 18, 27, 36, 45, 54
 
   status:
-    in-queue: "&c→ CLICK to Leave Queue"
-    not-in-queue: "&a→ CLICK to Queue"
+    in-queue: "&c-> CLICK to Leave Queue"
+    not-in-queue: "&a-> CLICK to Queue"
 
-# Queue Settings
-queue:
-  max-players: 2           # Maximum players needed to start teleport
-  countdown-seconds: 3     # Countdown before teleport (3-2-1 Let's Go!)
+# Queue settings moved to queue.yml
+# Cross-server routing moved to cross-server.yml
 
 rtp-settings:
   # List of biomes to avoid.
@@ -35,7 +33,7 @@ rtp-settings:
 
 # Messages
 messages:
-  prefix: "&aRTPQUEUE &8» &r"
+  prefix: "&aRTPQUEUE &8> &r"
   joined-queue: "&aYou joined the queue for &e%world%&a! &7(%current%/%max% players)"
   left-queue: "&cYou left the queue for &e%world%&c."
   opponent-found: "&aOpponent found, you will be teleported!"
@@ -50,11 +48,13 @@ messages:
   broadcast-message-shown: "&aYou will now see RTP queue messages."
   config-reloaded: "&aConfiguration reloaded successfully!"
   no-spot: "&cNo safe spot found, try again in a bit"
+  transfer-preparing: "&eTransferring you to &6%server% &7[%region%] &e(%host%:%port%)..."
+  transfer-failed: "&cCould not transfer you to &e%server% &7[%region%]&c. Please try again."
 
 # Broadcast Settings (shown to all players)
 broadcast:
   enabled: true
-  header: "&a✦ &a&lRTPQUEUE &a✦"
+  header: "&a* &a&lRTPQUEUE &a*"
   lines:
     - "&e%player% &7is waiting for"
     - "&7an opponent to fight!"
@@ -65,7 +65,7 @@ title:
   enabled: true
   join-title: "&a&l+"
   join-subtitle: "&aJoined &e&lRTPQueue&a!"
-  found-title: "&a&l✓"
+  found-title: "&a&l+"
   found-subtitle: "&aOpponent found!"
   fade-in: 10
   stay: 40
@@ -80,15 +80,17 @@ actionbar:
 # Join Message Settings (shown to the player who joined)
 join-message:
   enabled: true
-  message: "&aRTPQUEUE &8» &7You joined the RTPQueue, wait for an opponent."
+  message: "&aRTPQUEUE &8> &7You joined the RTPQueue, wait for an opponent."
 
 # Worlds Configuration
 # Each world needs:
 # - enabled: true/false
 # - display-name: Name shown in GUI
-# - description: Description shown in lore
 # - material: Block/Item to show in GUI
 # - slot: Position in GUI (0-53)
+# - server: Target backend ID (must match that backend's unique local-server-id)
+# - region: Target region route ID (must exist in cross-server.yml server-routes)
+#           Only needed for cross-region proxy transfer; same-region uses proxy Connect to "server"
 # - spawn-range:
 #     min: Minimum distance from center
 #     max: Maximum distance from center
@@ -98,13 +100,15 @@ worlds:
   world:
     enabled: true
     display-name: "&a&lOVERWORLD"
+    server: "eu-overworld"
+    region: "eu"
     world-item-lore:
       - ""
       - "&e&lInformation:"
       - "&7Click here to queue for"
       - "&7the &f%world% &7world!"
       - ""
-      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - "&6* &fPlayers in queue: &a%current%&7/&e%max%"
       - ""
       - "%status%"
     material: GRASS_BLOCK
@@ -115,17 +119,19 @@ worlds:
     center:
       x: 0
       z: 0
-      
+
   world_nether:
     enabled: true
     display-name: "&c&lNETHER"
+    server: "eu-dimensions"
+    region: "eu"
     world-item-lore:
       - ""
       - "&e&lInformation:"
       - "&7Click here to queue for"
       - "&7the &f%world% &7world!"
       - ""
-      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - "&6* &fPlayers in queue: &a%current%&7/&e%max%"
       - ""
       - "%status%"
     material: NETHERRACK
@@ -136,17 +142,19 @@ worlds:
     center:
       x: 0
       z: 0
-      
+
   world_the_end:
     enabled: true
     display-name: "&5&lTHE END"
+    server: "eu-dimensions"
+    region: "eu"
     world-item-lore:
       - ""
       - "&e&lInformation:"
       - "&7Click here to queue for"
       - "&7the &f%world% &7world!"
       - ""
-      - "&6★ &fPlayers in queue: &a%current%&7/&e%max%"
+      - "&6* &fPlayers in queue: &a%current%&7/&e%max%"
       - ""
       - "%status%"
     material: END_STONE
@@ -162,7 +170,8 @@ worlds:
 # plains:
 #   enabled: true
 #   display-name: "&e&lPLAINS"
-#   description: "&7A flat plains biome world"
+#   server: "na-overworld"
+#   region: "na"
 #   material: TALL_GRASS
 #   slot: 10
 #   spawn-range:

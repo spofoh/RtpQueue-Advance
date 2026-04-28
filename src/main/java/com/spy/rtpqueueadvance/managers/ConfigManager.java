@@ -4,11 +4,19 @@ import com.spy.rtpqueueadvance.RtpQueueAdvance;
 import com.spy.rtpqueueadvance.utils.WorldConfig;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class ConfigManager {
 
@@ -19,6 +27,8 @@ public class ConfigManager {
     private int guiSize;
     private int maxPlayers;
     private int countdownSeconds;
+    private String queueMode;
+    private RedisSettings redisSettings;
 
     private List<String> blacklistedBiomes;
 
@@ -36,6 +46,8 @@ public class ConfigManager {
     private String broadcastMessageShown;
     private String configReloadedMsg;
     private String noSpotMsg;
+    private String transferPreparingMsg;
+    private String transferFailedMsg;
 
     private boolean broadcastEnabled;
     private String broadcastHeader;
@@ -61,83 +73,160 @@ public class ConfigManager {
     private String guiStatusInQueue;
     private String guiStatusNotInQueue;
 
+    private boolean crossServerEnabled;
+    private String localServerId;
+    private int transferIntentTtlSeconds;
+    private final Map<String, ServerRoute> serverRoutes;
+    private final Set<String> localServerRegions;
+
     public ConfigManager(RtpQueueAdvance plugin) {
         this.plugin = plugin;
         this.worldConfigs = new HashMap<>();
+        this.serverRoutes = new HashMap<>();
+        this.localServerRegions = new HashSet<>();
         loadConfig();
     }
 
     private void loadConfig() {
-        guiTitle = plugin.getConfig().getString("gui.title", "&6&lRTP Queue &8| &fWorld Selection");
-        guiSize = plugin.getConfig().getInt("gui.size", 27);
+        FileConfiguration mainConfig = plugin.getConfig();
+        FileConfiguration queueConfig = loadExternalConfig("queue.yml");
+        FileConfiguration crossServerConfig = loadExternalConfig("cross-server.yml");
+
+        guiTitle = mainConfig.getString("gui.title", "&6&lRTP Queue &8| &fWorld Selection");
+        guiSize = mainConfig.getInt("gui.size", 27);
 
         if (guiSize % 9 != 0 || guiSize < 9 || guiSize > 54) {
             guiSize = 27;
         }
 
-        blacklistedBiomes = plugin.getConfig().getStringList("rtp-settings.blacklisted-biomes");
+        blacklistedBiomes = mainConfig.getStringList("rtp-settings.blacklisted-biomes");
 
-        maxPlayers = plugin.getConfig().getInt("queue.max-players", 2);
-        countdownSeconds = plugin.getConfig().getInt("queue.countdown-seconds", 3);
+        maxPlayers = queueConfig.getInt("queue.max-players", 2);
+        countdownSeconds = queueConfig.getInt("queue.countdown-seconds", 3);
+        queueMode = queueConfig.getString("queue.mode", "local").toLowerCase(Locale.ROOT);
 
-        prefix = plugin.getConfig().getString("messages.prefix", "&aRTPQUEUE &8» &r");
-        leftQueueMsg = plugin.getConfig().getString("messages.left-queue", "&cYou left the queue for &e%world%&c.");
-        opponentFoundMsg = plugin.getConfig().getString("messages.opponent-found", "&aOpponent found, you will be teleported!");
-        teleportationCountdownMsg = plugin.getConfig().getString("messages.teleportation-countdown", "&eTeleportation in &c%seconds%s");
-        teleportedMsg = plugin.getConfig().getString("messages.teleported", "&aYou have been teleported!");
-        alreadyInQueueMsg = plugin.getConfig().getString("messages.already-in-queue", "&cYou are already in a queue!");
-        notInQueueMsg = plugin.getConfig().getString("messages.not-in-queue", "&cYou are not in any queue!");
-        opponentLeftMsg = plugin.getConfig().getString("messages.opponent-left",
+        String redisHost = queueConfig.getString("queue.redis.host", "127.0.0.1");
+        int redisPort = queueConfig.getInt("queue.redis.port", 6379);
+        String redisPassword = queueConfig.getString("queue.redis.password", "");
+        int redisDatabase = queueConfig.getInt("queue.redis.database", 0);
+        String redisKeyPrefix = queueConfig.getString("queue.redis.key-prefix", "rtpqueue");
+        int redisMatchLockSeconds = queueConfig.getInt("queue.redis.match-lock-seconds", 2);
+        redisSettings = new RedisSettings(redisHost, redisPort, redisPassword, redisDatabase, redisKeyPrefix,
+                redisMatchLockSeconds);
+
+        prefix = mainConfig.getString("messages.prefix", "&aRTPQUEUE &8> &r");
+        leftQueueMsg = mainConfig.getString("messages.left-queue", "&cYou left the queue for &e%world%&c.");
+        opponentFoundMsg = mainConfig.getString("messages.opponent-found", "&aOpponent found, you will be teleported!");
+        teleportationCountdownMsg = mainConfig.getString("messages.teleportation-countdown", "&eTeleportation in &c%seconds%s");
+        teleportedMsg = mainConfig.getString("messages.teleported", "&aYou have been teleported!");
+        alreadyInQueueMsg = mainConfig.getString("messages.already-in-queue", "&cYou are already in a queue!");
+        notInQueueMsg = mainConfig.getString("messages.not-in-queue", "&cYou are not in any queue!");
+        opponentLeftMsg = mainConfig.getString("messages.opponent-left",
                 "&cYour opponent left! You've been placed back at the front of the queue.");
-        worldNotFoundMsg = plugin.getConfig().getString("messages.world-not-found", "&cWorld not found!");
-        noPermissionMsg = plugin.getConfig().getString("messages.no-permission", "&cYou don't have permission to use this!");
-        broadcastMessageHidden = plugin.getConfig().getString("messages.broadcast-message-hidden",
+        worldNotFoundMsg = mainConfig.getString("messages.world-not-found", "&cWorld not found!");
+        noPermissionMsg = mainConfig.getString("messages.no-permission", "&cYou don't have permission to use this!");
+        broadcastMessageHidden = mainConfig.getString("messages.broadcast-message-hidden",
                 "&cYou will no longer see RTP queue messages.");
-        broadcastMessageShown = plugin.getConfig().getString("messages.broadcast-message-shown",
+        broadcastMessageShown = mainConfig.getString("messages.broadcast-message-shown",
                 "&aYou will now see RTP queue messages.");
-        configReloadedMsg = plugin.getConfig().getString("messages.config-reloaded", "&aConfiguration reloaded successfully!");
+        configReloadedMsg = mainConfig.getString("messages.config-reloaded", "&aConfiguration reloaded successfully!");
+        noSpotMsg = mainConfig.getString("messages.no-spot", "&cNo safe spot found, try again in a bit");
+        transferPreparingMsg = mainConfig.getString("messages.transfer-preparing",
+                "&eTransferring you to &6%server% &7[%region%] &e(%host%:%port%)...");
+        transferFailedMsg = mainConfig.getString("messages.transfer-failed",
+                "&cCould not transfer you to &e%server% &7[%region%]&c. Please try again.");
 
-        noSpotMsg = plugin.getConfig().getString("messages.no-spot", "&cNo safe spot found, try again in a bit");
+        guiStatusInQueue = mainConfig.getString("gui.status.in-queue", "&c-> CLICK to Leave Queue");
+        guiStatusNotInQueue = mainConfig.getString("gui.status.not-in-queue", "&a-> CLICK to Queue");
 
-        guiStatusInQueue = plugin.getConfig().getString("gui.status.in-queue", "&c→ CLICK to Leave Queue");
-        guiStatusNotInQueue = plugin.getConfig().getString("gui.status.not-in-queue", "&a→ CLICK to Queue");
-
-        broadcastEnabled = plugin.getConfig().getBoolean("broadcast.enabled", true);
-        broadcastHeader = plugin.getConfig().getString("broadcast.header", "&a&l✦ RTPQUEUE ✦");
+        broadcastEnabled = mainConfig.getBoolean("broadcast.enabled", true);
+        broadcastHeader = mainConfig.getString("broadcast.header", "&a&l* RTPQUEUE *");
         broadcastLines = new ArrayList<>();
-        List<String> rawLines = plugin.getConfig().getStringList("broadcast.lines");
+        List<String> rawLines = mainConfig.getStringList("broadcast.lines");
         if (rawLines.isEmpty()) {
-            broadcastLines.add("&6👑&e%player% &7is waiting for");
+            broadcastLines.add("&e%player% &7is waiting for");
             broadcastLines.add("&7an opponent to fight!");
         } else {
             broadcastLines.addAll(rawLines);
         }
-        broadcastFooter = plugin.getConfig().getString("broadcast.footer", "&a+ /rtpqueue +");
+        broadcastFooter = mainConfig.getString("broadcast.footer", "&a+ /rtpqueue +");
 
-        titleEnabled = plugin.getConfig().getBoolean("title.enabled", true);
-        titleJoinText = plugin.getConfig().getString("title.join-title", "&a&l+");
-        titleJoinSubtitle = plugin.getConfig().getString("title.join-subtitle", "&aJoined &e&lRTPQueue&a!");
-        titleFoundText = plugin.getConfig().getString("title.found-title", "&a&l✓");
-        titleFoundSubtitle = plugin.getConfig().getString("title.found-subtitle", "&aOpponent found!");
-        titleFadeIn = plugin.getConfig().getInt("title.fade-in", 10);
-        titleStay = plugin.getConfig().getInt("title.stay", 40);
-        titleFadeOut = plugin.getConfig().getInt("title.fade-out", 10);
+        titleEnabled = mainConfig.getBoolean("title.enabled", true);
+        titleJoinText = mainConfig.getString("title.join-title", "&a&l+");
+        titleJoinSubtitle = mainConfig.getString("title.join-subtitle", "&aJoined &e&lRTPQueue&a!");
+        titleFoundText = mainConfig.getString("title.found-title", "&a&l+");
+        titleFoundSubtitle = mainConfig.getString("title.found-subtitle", "&aOpponent found!");
+        titleFadeIn = mainConfig.getInt("title.fade-in", 10);
+        titleStay = mainConfig.getInt("title.stay", 40);
+        titleFadeOut = mainConfig.getInt("title.fade-out", 10);
 
-        actionbarEnabled = plugin.getConfig().getBoolean("actionbar.enabled", true);
-        actionbarMessage = plugin.getConfig().getString("actionbar.message",
+        actionbarEnabled = mainConfig.getBoolean("actionbar.enabled", true);
+        actionbarMessage = mainConfig.getString("actionbar.message",
                 "&7Waiting for a &aplayer &7in &a/rtpqueue &7(%current%/%max%)");
-        actionbarInterval = plugin.getConfig().getInt("actionbar.interval", 20);
+        actionbarInterval = mainConfig.getInt("actionbar.interval", 20);
 
-        joinMessageEnabled = plugin.getConfig().getBoolean("join-message.enabled", true);
-        joinMessageText = plugin.getConfig().getString("join-message.message",
-                "&aRTPQUEUE &8» &7You joined the RTPQueue, wait for an opponent.");
+        joinMessageEnabled = mainConfig.getBoolean("join-message.enabled", true);
+        joinMessageText = mainConfig.getString("join-message.message",
+                "&aRTPQUEUE &8> &7You joined the RTPQueue, wait for an opponent.");
 
-        loadWorlds();
+        crossServerEnabled = crossServerConfig.getBoolean("cross-server.enabled", false);
+        if (crossServerEnabled && !isRedisQueueMode()) {
+            plugin.getLogger().warning("Cross-server requires queue.mode=redis. Disabling cross-server until redis mode is enabled.");
+            crossServerEnabled = false;
+        }
+
+        localServerId = normalizeId(crossServerConfig.getString("cross-server.local-server-id", "local"), "local");
+        transferIntentTtlSeconds = Math.max(5,
+                crossServerConfig.getInt("cross-server.transfer-intent-ttl-seconds", 30));
+
+        loadServerRoutes(crossServerConfig);
+        loadWorlds(mainConfig);
     }
 
-    private void loadWorlds() {
+    private FileConfiguration loadExternalConfig(String fileName) {
+        File file = new File(plugin.getDataFolder(), fileName);
+        if (!file.exists()) {
+            plugin.saveResource(fileName, false);
+        }
+        return YamlConfiguration.loadConfiguration(file);
+    }
+
+    private void loadServerRoutes(FileConfiguration crossServerConfig) {
+        serverRoutes.clear();
+
+        ConfigurationSection routesSection = crossServerConfig.getConfigurationSection("cross-server.server-routes");
+        if (routesSection == null) {
+            return;
+        }
+
+        for (String routeId : routesSection.getKeys(false)) {
+            ConfigurationSection serverSection = routesSection.getConfigurationSection(routeId);
+            if (serverSection == null) {
+                continue;
+            }
+
+            String host = serverSection.getString("host", "").trim();
+            int port = serverSection.getInt("port", 25565);
+            String normalizedRouteId = normalizeId(routeId, "");
+
+            if (host.isEmpty()) {
+                plugin.getLogger().warning("Cross-server route " + routeId + " has no host, skipping.");
+                continue;
+            }
+
+            if (normalizedRouteId.isEmpty()) {
+                plugin.getLogger().warning("Cross-server route " + routeId + " is invalid, skipping.");
+                continue;
+            }
+
+            serverRoutes.put(normalizedRouteId, new ServerRoute(normalizedRouteId, host, port));
+        }
+    }
+
+    private void loadWorlds(FileConfiguration mainConfig) {
         worldConfigs.clear();
-        ConfigurationSection worldsSection = plugin.getConfig().getConfigurationSection("worlds");
+        localServerRegions.clear();
+        ConfigurationSection worldsSection = mainConfig.getConfigurationSection("worlds");
 
         if (worldsSection == null) {
             plugin.getLogger().warning("No worlds configured in config.yml!");
@@ -170,6 +259,8 @@ public class ConfigManager {
             int maxRange = worldSection.getInt("spawn-range.max", 5000);
             int centerX = worldSection.getInt("center.x", 0);
             int centerZ = worldSection.getInt("center.z", 0);
+            String serverId = normalizeId(worldSection.getString("server", localServerId), localServerId);
+            String regionId = normalizeId(worldSection.getString("region", ""), "");
 
             WorldConfig config = new WorldConfig(
                     worldName,
@@ -180,15 +271,31 @@ public class ConfigManager {
                     minRange,
                     maxRange,
                     centerX,
-                    centerZ);
+                    centerZ,
+                    serverId,
+                    regionId);
 
             worldConfigs.put(worldName, config);
+            if (localServerId.equals(serverId) && !regionId.isBlank()) {
+                localServerRegions.add(regionId);
+            }
             plugin.getLogger().info(
-                    "Loaded world: " + worldName + " (slot " + slot + ", range " + minRange + "-" + maxRange + ")");
+                    "Loaded world: " + worldName + " (slot " + slot + ", range " + minRange + "-" + maxRange
+                            + ", server " + serverId + ", region " + regionId + ")");
+        }
+
+        if (localServerRegions.isEmpty()) {
+            plugin.getLogger().warning("No local regions inferred for local-server-id '" + localServerId
+                    + "'. Region-based transfer decisions may be inaccurate. Ensure at least one world uses this server id.");
         }
     }
 
+    public record ServerRoute(String serverId, String host, int port) {
+    }
 
+    public record RedisSettings(String host, int port, String password, int database, String keyPrefix,
+                                int matchLockSeconds) {
+    }
 
     public Map<String, WorldConfig> getWorldConfigs() {
         return worldConfigs;
@@ -198,7 +305,9 @@ public class ConfigManager {
         return guiTitle;
     }
 
-    public List<String> getBlacklistedBiomes() { return blacklistedBiomes; }
+    public List<String> getBlacklistedBiomes() {
+        return blacklistedBiomes;
+    }
 
     public int getGuiSize() {
         return guiSize;
@@ -210,6 +319,18 @@ public class ConfigManager {
 
     public int getCountdownSeconds() {
         return countdownSeconds;
+    }
+
+    public String getQueueMode() {
+        return queueMode;
+    }
+
+    public boolean isRedisQueueMode() {
+        return "redis".equalsIgnoreCase(queueMode);
+    }
+
+    public RedisSettings getRedisSettings() {
+        return redisSettings;
     }
 
     public String getPrefix() {
@@ -266,6 +387,14 @@ public class ConfigManager {
 
     public String getNoSpotMsg() {
         return noSpotMsg;
+    }
+
+    public String getTransferPreparingMsg() {
+        return transferPreparingMsg;
+    }
+
+    public String getTransferFailedMsg() {
+        return transferFailedMsg;
     }
 
     public boolean isBroadcastEnabled() {
@@ -342,5 +471,44 @@ public class ConfigManager {
 
     public String getJoinMessageText() {
         return joinMessageText;
+    }
+
+    public boolean isCrossServerEnabled() {
+        return crossServerEnabled;
+    }
+
+    public String getLocalServerId() {
+        return localServerId;
+    }
+
+    public boolean isLocalServerId(String serverId) {
+        return serverId != null && serverId.equalsIgnoreCase(localServerId);
+    }
+
+    public boolean isLocalRegion(String regionId) {
+        return regionId != null && localServerRegions.contains(regionId.toLowerCase(Locale.ROOT));
+    }
+
+    public Set<String> getLocalServerRegions() {
+        return Collections.unmodifiableSet(localServerRegions);
+    }
+
+    public int getTransferIntentTtlSeconds() {
+        return transferIntentTtlSeconds;
+    }
+
+    public Optional<ServerRoute> getServerRoute(String serverId) {
+        if (serverId == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(serverRoutes.get(serverId.toLowerCase(Locale.ROOT)));
+    }
+
+    private static String normalizeId(String value, String fallback) {
+        String candidate = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (!candidate.isEmpty()) {
+            return candidate;
+        }
+        return fallback == null ? "" : fallback.trim().toLowerCase(Locale.ROOT);
     }
 }
